@@ -5,6 +5,127 @@ using System.Windows.Forms;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
+void otsu((Bitmap bmp, float[] img) t, float db = 0.05f)
+{
+    var histogram = hist(t.img, db);
+    int threshold = 0;
+
+    float Ex0 = 0;
+    float Ex1 = t.img.Average();
+    float Dx0 = 0;
+    float Dx1 = t.img.Sum(x => x * x);
+    int N0 = 0;
+    int N1 = t.img.Length;
+
+    float minstddev = float.PositiveInfinity;
+
+    for (int i = 0; i < histogram.Length; i++)
+    {
+        float value = db * (2 * i + 1) / 2;
+        float s = histogram[i] * value;
+
+        if (N0 == 0 && histogram[i] == 0)
+            continue;
+
+        Ex0 = (Ex0 * N0 + s) / (N0 + histogram[i]);
+        Ex1 = (Ex1 * N1 - s) / (N1 - histogram[i]);
+
+        N0 += histogram[i];
+        N1 -= histogram[i];
+
+        Dx0 += value * value * histogram[i];
+        Dx1 -= value * value * histogram[i];
+
+        float stddev =
+            Dx0 / N0 - Ex0 * Ex0 + 
+            Dx1 / N1 - Ex1 * Ex1;
+        
+        if (float.IsInfinity(stddev) ||
+            float.IsNaN(stddev))
+            continue;
+        
+        if (stddev < minstddev)
+        {
+            minstddev = stddev;
+            threshold = i;
+        }
+    }
+    float bestTreshold = db * (2 * threshold + 1) / 2;
+
+    tresh(t, bestTreshold);
+}
+
+void tresh((Bitmap bmp, float[] img) t, 
+    float threshold = 0.5f)
+{
+    for (int i = 0; i < t.img.Length; i++)
+        t.img[i] = t.img[i] > threshold ? 1f : 0f;
+}
+
+float[] equalization(
+    (Bitmap bmp, float[] img) t,
+    float threshold = 0f,
+    float db = 0.05f)
+{
+    int[] histogram = hist(t.img, db);
+
+    int dropCount = (int)(t.img.Length * threshold);
+    
+    float min = 0;
+    int droped = 0;
+    for (int i = 0; i < histogram.Length; i++)
+    {
+        droped += histogram[i];
+        if (droped > dropCount)
+        {
+            min = i * db;
+            break;
+        }
+    }
+
+    float max = 0;
+    droped = 0;
+    for (int i = histogram.Length - 1; i > -1; i--)
+    {
+        droped += histogram[i];
+        if (droped > dropCount)
+        {
+            max = i * db;
+            break;
+        }
+    }
+
+    var r = 1 / (max - min);
+    
+    for (int i = 0; i < t.img.Length; i++)
+    {
+        float newValue = (t.img[i] - min) * r;
+        if (newValue > 1f)
+            newValue = 1f;
+        else if (newValue < 0f)
+            newValue = 0f;
+        t.img[i] = newValue;
+    }
+    
+    return t.img;
+}
+
+void showHist((Bitmap bmp, float[] img) t, float db = 0.05f)
+{
+    var histogram = hist(t.img, db);
+    var histImg = drawHist(histogram);
+    showBmp(histImg);
+}
+
+(Bitmap bmp, float[] img) open(string path)
+{
+    var bmp = Bitmap.FromFile(path) as Bitmap;
+    var byteArray = bytes(bmp);
+    var dataCont = continuous(byteArray);
+    var gray = grayScale(dataCont);
+    return (bmp, gray);
+}
+
 float[] inverse(float[] img)
 {
     for (int i = 0; i < img.Length; i++)
@@ -38,6 +159,13 @@ Image drawHist(int[] hist)
     }
 
     return bmp;
+}
+
+void show((Bitmap bmp, float[] gray) t)
+{
+    var bytes = discretGray(t.gray);
+    var image = img(t.bmp, bytes);
+    showBmp(image);
 }
 
 int[] hist(float[] img, float db = 0.05f)
@@ -132,7 +260,7 @@ Image img(Image img, byte[] bytes)
     var bmp = img as Bitmap;
     var data = bmp.LockBits(
         new Rectangle(0, 0, img.Width, img.Height),
-        ImageLockMode.ReadOnly,
+        ImageLockMode.ReadWrite,
         PixelFormat.Format24bppRgb);
     
     byte[] temp = new byte[data.Stride * data.Height];
@@ -152,7 +280,7 @@ Image img(Image img, byte[] bytes)
     return img;
 }
 
-void show(Image img)
+void showBmp(Image img)
 {
     ApplicationConfiguration.Initialize();
 
@@ -182,13 +310,6 @@ void show(Image img)
     Application.Run(form);
 }
 
-var planta = Bitmap.FromFile("antiga2.jpg");
-var bytesPlanta = bytes(planta);
-var floatPlanta = continuous(bytesPlanta);
-var grayPlanta = grayScale(floatPlanta);
-
-img(planta, discretGray(grayPlanta));
-
-var histogram = hist(grayPlanta);
-var histogramImg = drawHist(histogram);
-show(histogramImg);
+var image = open("facil.jpeg");
+otsu(image);
+show(image);
