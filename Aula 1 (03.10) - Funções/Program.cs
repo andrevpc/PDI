@@ -3,7 +3,182 @@ using System.Linq;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Drawing.Imaging;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+
+(Bitmap bmp, float[] img) conv(
+    (Bitmap bmp, float[] img) t, float[] kernel)
+{
+    var N = (int)Math.Sqrt(kernel.Length);
+    var wid = t.bmp.Width;
+    var hei = t.bmp.Height;
+    var _img = t.img;
+    float[] result = new float[_img.Length];
+
+    for (int j = N / 2; j < hei - N / 2; j++)
+    {
+        for (int i = N / 2; i < wid - N / 2; i++)
+        {
+            float sum = 0;
+
+            for (int k = 0; k < N; k++)
+            {
+                for (int l = 0; l < N; l++)
+                {
+                    sum += _img[i + k + (j + l) * wid] * 
+                        kernel[k + l * N];
+                }
+            }
+
+            result[i + j * wid] = sum;
+        }
+    }
+
+    var Imgbytes = discretGray(result);
+    img(t.bmp, Imgbytes);
+
+    return (t.bmp, result);
+}
+
+(Bitmap bmp, float[] img) morfology((Bitmap bmp, float[] img) t, float[] kernel, bool erosion)
+{
+    bool match = false;
+    int wid = t.bmp.Width;
+    int hei = t.bmp.Height;
+
+    float[] imgor = t.img;
+    float[] newImg = new float[imgor.Length];
+    var tamKernel = (int)Math.Sqrt(kernel.Length);
+
+    for (int i = 0; i < imgor.Length; i++)
+    {
+        match = erosion;
+        int x = i % wid,
+            y = i / wid;
+
+        for (int j = 0; j < kernel.Length; j++)
+        {
+            if (kernel[j] == 0f)
+                continue;
+            
+            int kx = j % tamKernel,
+                ky = j / tamKernel;
+
+            int tx = x + kx - tamKernel / 2;
+            int ty = y + ky - tamKernel / 2;
+
+            if (tx < 0 || ty < 0 || tx >= wid || ty >= hei)
+                continue;
+
+            int index = tx + ty * wid;
+
+            if (imgor[index] == 1f)
+            {
+                if (!erosion)
+                {
+                    match = true;
+                    break;
+                }
+            }
+            else
+            {
+                if (erosion)
+                {
+                    match = false;
+                    break;
+                }
+            }
+        }
+
+        if (match)
+            newImg[i] = 1f;
+    }
+
+    var Imgbytes = discretGray(newImg);
+    img(t.bmp, Imgbytes);
+
+    return (t.bmp, newImg);
+}
+
+List<Rectangle> segmentation((Bitmap bmp, float[] img) t)
+{
+    var rects = segmentationT(t, 0);
+    var areas = rects.Select(r => r.Width * r.Height);
+    var average = areas.Average();
+    
+    return rects
+        .Where(r => r.Width * r.Height > average)
+        .ToList();
+}
+
+List<Rectangle> segmentationT((Bitmap bmp, float[] img) t, int threshold)
+{
+    List<Rectangle> list = new List<Rectangle>();
+    Stack<int> stack = new Stack<int>();
+
+    float[] img = t.img;
+    int wid = t.bmp.Width;
+    float crr = 0.01f;
+
+    int minx, maxx, miny, maxy;
+    int count = 0;
+
+    for (int i = 0; i < img.Length; i++)
+    {
+        if (img[i] > 0f)
+            continue;
+        
+        minx = int.MaxValue;
+        miny = int.MaxValue;
+        maxx = int.MinValue;
+        maxy = int.MinValue;
+        count = 0;
+        stack.Push(i);
+
+        while (stack.Count > 0)
+        {
+            int j = stack.Pop();
+
+            if (j < 0 || j >= img.Length)
+                continue;
+            
+            if (img[j] > 0f)
+                continue;
+
+            int x = j % wid,
+                y = j / wid;
+            
+            if (x < minx)
+                minx = x;
+            if (x > maxx)
+                maxx = x;
+            
+            if (y < miny)
+                miny = y;
+            if (y > maxy)
+                maxy = y;
+            
+            img[j] = crr;
+            count++;
+
+            stack.Push(j - 1);
+            stack.Push(j + 1);
+            stack.Push(j + wid);
+            stack.Push(j - wid);
+        }
+
+        crr += 0.01f;
+        if (count < threshold)
+            continue;
+
+        Rectangle rect = new Rectangle(
+            minx, miny, maxx - minx, maxy - miny
+        );
+        list.Add(rect);
+    }
+
+    return list;
+}
 
 void otsu((Bitmap bmp, float[] img) t, float db = 0.05f)
 {
@@ -37,8 +212,8 @@ void otsu((Bitmap bmp, float[] img) t, float db = 0.05f)
         Dx1 -= value * value * histogram[i];
 
         float stddev =
-            Dx0 / N0 - Ex0 * Ex0 + 
-            Dx1 / N1 - Ex1 * Ex1;
+            Dx0 - N0 * Ex0 * Ex0 + 
+            Dx1 - N1 * Ex1 * Ex1;
         
         if (float.IsInfinity(stddev) ||
             float.IsNaN(stddev))
@@ -126,11 +301,10 @@ void showHist((Bitmap bmp, float[] img) t, float db = 0.05f)
     return (bmp, gray);
 }
 
-float[] inverse(float[] img)
+void inverse((Bitmap bmp, float[] img) t)
 {
-    for (int i = 0; i < img.Length; i++)
-        img[i] = 1f - img[i];
-    return img;
+    for (int i = 0; i < t.img.Length; i++)
+        t.img[i] = 1f - t.img[i];
 }
 
 Image drawHist(int[] hist)
@@ -310,6 +484,23 @@ void showBmp(Image img)
     Application.Run(form);
 }
 
-var image = open("facil.jpeg");
-otsu(image);
+void showRects((Bitmap bmp, float[] img) t, List<Rectangle> list)
+{
+    var g = Graphics.FromImage(t.bmp);
+
+    foreach (var rect in list)
+        g.DrawRectangle(Pens.Red, rect);
+    
+    showBmp(t.bmp);
+}
+
+var image = open("shuregui.png");
+image = conv(image, new float[]
+{
+    0.04f, 0.04f, 0.04f, 0.04f, 0.04f,
+    0.04f, 0.04f, 0.04f, 0.04f, 0.04f,
+    0.04f, 0.04f, 0.04f, 0.04f, 0.04f,
+    0.04f, 0.04f, 0.04f, 0.04f, 0.04f,
+    0.04f, 0.04f, 0.04f, 0.04f, 0.04f,
+});
 show(image);
