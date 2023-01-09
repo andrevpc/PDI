@@ -6,6 +6,51 @@ using System.Drawing.Imaging;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
+
+(Bitmap bmp, float[]img) sobel((Bitmap bmp, float[] img) t)
+{
+    var wid = t.bmp.Width;
+    var hei = t.bmp.Height;
+    var _img = t.img;
+    float[] result = new float[_img.Length];
+    
+    var soma = 2*_img[hei] + _img[hei + 1];
+    for (int j = 1; j < hei-1; j++)
+    {
+        for (int i = 1; i < wid-1; i++)
+        {
+            var r0 = (j * hei + i);
+            
+            soma = -(_img[r0-1]) + soma + _img[r0+1];
+
+            result[r0] = soma;
+        }
+    }
+
+    var a = _img[wid] + _img[wid + 1];
+    for (int j = 1; j < hei-1; j++)
+    {
+        for (int i = 1; i < wid-1; i++)
+        {
+            var r0 = (i + j * wid);
+
+            float b = _img[r0] + _img[r0 + 1];
+
+            var verification = a - b;
+
+
+            result[r0] = verification > 1f ? 1f : (verification < 0f ? 0f : verification);
+
+            a = b;
+        }
+    }
+
+    var Imgbytes = discretGray(result);
+    img(t.bmp, Imgbytes);
+
+    return (t.bmp, result);
+}
+
 (Bitmap bmp, float[] img) conv(
     (Bitmap bmp, float[] img) t, float[] kernel)
 {
@@ -25,10 +70,15 @@ using System.Runtime.InteropServices;
             {
                 for (int l = 0; l < N; l++)
                 {
-                    sum += _img[i + k + (j + l) * wid] * 
+                    sum += _img[i + k - (N / 2) + (j + l - (N / 2)) * wid] * 
                         kernel[k + l * N];
                 }
             }
+
+            if (sum > 1f)
+                sum = 1f;
+            else if (sum < 0f)
+                sum = 0f;
 
             result[i + j * wid] = sum;
         }
@@ -495,12 +545,11 @@ void showRects((Bitmap bmp, float[] img) t, List<Rectangle> list)
 }
 
 var image = open("shuregui.png");
-image = conv(image, new float[]
-{
-    0.04f, 0.04f, 0.04f, 0.04f, 0.04f,
-    0.04f, 0.04f, 0.04f, 0.04f, 0.04f,
-    0.04f, 0.04f, 0.04f, 0.04f, 0.04f,
-    0.04f, 0.04f, 0.04f, 0.04f, 0.04f,
-    0.04f, 0.04f, 0.04f, 0.04f, 0.04f,
-});
+image = sobel(image);
+// image = conv(image, new float[]
+// {
+//     1, 0, -1,
+//     2, 0, -2,
+//     1, 0, -1
+// });
 show(image);
