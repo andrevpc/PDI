@@ -28,7 +28,6 @@ for (int i = 0; i < 1000; i++)
     }
     count++;
 }
-Console.WriteLine(count);
 
 
 // for (int i = 0; i < 1000; i++)
@@ -63,150 +62,186 @@ int solucao1(int[,] mat, int N)
 
 int solucao2(int[,] mat, int N)
 {
-    // MostrarMatrizCebola(mat);
-
-    N -= 1;
-    List<int> corners = new List<int> { mat[0, 0], mat[N, 0], mat[0, N], mat[N, N] };
+    MostrarMatrizCebola(mat);
+    List<int> corners = new List<int> { mat[0, 0], mat[N - 1, 0], mat[0, N - 1], mat[N - 1, N - 1] };
     var selectedCorner = corners.Max();
 
+    // (int, int) cornes = new (int, int)[]
+    // {
+    //     (0, 0),
+    //     (N, 0),
+    //     (0, N),
+    //     (N, N)
+    // }.MaxBy(t => mat[t.Item1, t.Item2]);
 
-    int x = 1;
-    int y = 1;
-    var pos_x = 0;
-    var pos_y = 0;
+    int dx = 1;
+    int dy = 1;
+    var x = 0;
+    var y = 0;
 
     switch (corners.IndexOf(selectedCorner))
     {
         case 0:
             break;
         case 1:
-            pos_x = N;
-            x = -1;
+            x = N - 1;
+            dx = -1;
             break;
         case 2:
-            pos_y = N;
-            y = -1;
+            y = N - 1;
+            dy = -1;
             break;
         case 3:
-            pos_x = N;
-            pos_y = N;
-            x = -1;
-            y = -1;
+            x = N - 1;
+            y = N - 1;
+            dx = -1;
+            dy = -1;
             break;
     }
 
-    var next = mat[pos_x + x, pos_y + y];
-    var actual = mat[pos_x, pos_y];
-    var pos_x_s = 0;
-    var pos_y_s = 0;
-    var whi = false;
+    var next = mat[x + dx, y + dy];
+    var actual = mat[x, y];
 
-    var i = 0;
     while(next > actual)
     {
-        whi = true;
-        pos_x_s = pos_x + (x * i);
-        pos_y_s = pos_y + (y * i);
-
-        actual = mat[pos_x_s, pos_y_s];
-        next = mat[pos_x_s + x, pos_y_s + y];
-        
-        // Console.WriteLine(next + " " + actual);
-        // Console.WriteLine("Rodou");
-        i++;
+        x += dx;
+        y += dy;
+        actual = next;
+        next = mat[x + dx, y + dy];
     }
 
-    if(whi)
+    int s1 = y != 0 ? mat[x, y - 1] : int.MinValue;
+    int s2 = x != N - 1 && y != 0 ? mat[x + 1, y - 1] : int.MinValue;
+    int s3 = x != N - 1 ? mat[x + 1, y] : int.MinValue;
+    int s4 = x != N - 1 && y != N ? mat[x + 1, y + 1] : int.MinValue;
+    int s5 = y != N - 1 ? mat[x, y + 1 ] : int.MinValue;
+    int s6 = x != 0 ? mat[x - 1, y] : int.MinValue;
+    int s7 = x != 0 && y != N ? mat[x - 1, y + 1] : int.MinValue;
+    int s8 = x != 0 && y != 0 ? mat[x - 1, y - 1] : int.MinValue;
+    int s9 = mat[x, y];
+    
+    List<int> square = new List<int> 
     {
-        // Console.WriteLine("Quebrou");
-    }
-    else
-    {
-        // Console.WriteLine(selectedCorner);
-        pos_x_s = pos_x;
-        pos_y_s = pos_y;
-    }
-
-    List<int> square = new List<int> { pos_y_s!=0 ? mat[pos_x_s, pos_y_s-1] : int.MinValue,
-    pos_x_s!=N && pos_y_s!=0 ? mat[pos_x_s+1, pos_y_s-1] : int.MinValue,
-    pos_x_s!=N ? mat[pos_x_s+1, pos_y_s] : int.MinValue,
-    pos_x_s!=N && pos_y_s!=N ? mat[pos_x_s+1, pos_y_s+1] : int.MinValue,
-    pos_y_s!=N ? mat[pos_x_s, pos_y_s+1] : int.MinValue,
-    pos_x_s!=0 && pos_y_s!=N ? mat[pos_x_s-1, pos_y_s+1] : int.MinValue,
-    pos_x_s!=0 ? mat[pos_x_s-1, pos_y_s] : int.MinValue,
-    pos_x_s!=0 && pos_y_s!=0 ? mat[pos_x_s-1, pos_y_s-1] : int.MinValue,
-    mat[pos_x_s, pos_y_s]
+        s1, s2, s3, s4, s5, s6, s7, s8, s9
     };
 
-    var selectedCorner_s = square.Max();
-    Console.WriteLine(selectedCorner_s);
-    var x_s = 1;
-    var y_s = -1;
-    Console.WriteLine(square.IndexOf(selectedCorner_s));
+    // (int, int) squarel = new (int, int)[]
+    // {
+    //     (x, y-1),
+    //     (x+1, y-1),
+    //     (x+1, y),
+    //     (x+1, y+1),
+    //     (x, y+1),
+    //     (x-1, y+1),
+    //     (x-1, y),
+    //     (x-1,y-1),
+    //     (x, y)
+    // }.MaxBy(t => mat[t.Item1, t.Item2]);
 
-    switch (square.IndexOf(selectedCorner_s))
+    // if(squarel.Item1 > x)
+    // {
+    //     x++;
+    // }
+
+    selectedCorner = square.Max();
+    var maxIndex = square.IndexOf(selectedCorner);
+    
+    Console.WriteLine($"({dx} {dy}) {maxIndex}");
+    switch (maxIndex)
     {
         case 0:
-            pos_y_s--;
-            break;
-
-        case 1:
+            y--;
+            dx *= dy;
+            dy = -1;
             break;
 
         case 2:
-            pos_x_s++;
+            x++;
+            dy *= -dx;
+            dx = 1;
             break;
-
-            //3
 
         case 4:
-            pos_y_s++;
-            x_s = -1;
-            y_s = 1;
-            break;
-
-        case 5:
-            x_s = -1;
-            y_s = 1;
+            y++;
+            dx *= -dy;
+            dy = 1;
             break;
 
         case 6:
-            pos_x_s--;
-            x_s = -1;
-            y_s = 1;
+            x--;
+            dy *= dx;
+            dx = -1;
             break;
-        
-        //7
+
+        case 1:
+            x++;
+            y--;
+            dx = 1;
+            dy = -1;
+            break;
+
+        case 3:
+            x++;
+            y++;
+            dx = 1;
+            dy = 1;
+            break;
+
+        case 5:
+            x--;
+            y++;
+            dx = -1;
+            dy = 1;
+            break;
+
+        case 7:
+            x--;
+            y--;
+            dx = -1;
+            dy = -1;
+            break;
 
         case 8:
-            // Console.WriteLine(selectedCorner_s);
-            return selectedCorner_s;
-    }    
+            return selectedCorner;
+    }
 
-    var actual_s = mat[pos_x_s, pos_y_s];
+    actual = mat[x, y];
+    if (x + dx >= N || x + dx < 0 || y + dy >= N || y + dy < 0)
+        return actual;
+    next = mat[x + dx, y + dy];
+
+    Console.Write($"{next} > {actual}? ({dx}, {dy})");
+    while(next > actual)
+    {
+        Console.WriteLine($" {next} > {actual}!");
+        x += dx;
+        y += dy;
+        actual = next;
+        if (x + dx >= N || x + dx < 0 || y + dy >= N || y + dy < 0)
+            break;
+        next = mat[x + dx, y + dy];
+        Console.Write($"{next} > {actual}?");
+    }
+    Console.WriteLine($"Nop!");
+
+    s1 = y != 0 ? mat[x, y - 1] : int.MinValue;
+    s2 = x != N - 1 && y != 0 ? mat[x + 1, y - 1] : int.MinValue;
+    s3 = x != N - 1 ? mat[x + 1, y] : int.MinValue;
+    s4 = x != N - 1 && y != N ? mat[x + 1, y + 1] : int.MinValue;
+    s5 = y != N - 1 ? mat[x, y + 1 ] : int.MinValue;
+    s6 = x != 0 ? mat[x - 1, y] : int.MinValue;
+    s7 = x != 0 && y != N ? mat[x - 1, y + 1] : int.MinValue;
+    s8 = x != 0 && y != 0 ? mat[x - 1, y - 1] : int.MinValue;
+    s9 = mat[x, y];
     
-    if (pos_x_s + x_s < 0 || pos_y_s + y_s < 0 || pos_x_s + x_s < N || pos_y_s + y_s < N)
+    List<int> squares = new List<int> 
     {
-        return actual_s;
-    }
-    var next_s = mat[pos_x_s + x_s, pos_y_s + y_s];
+        s1, s2, s3, s4, s5, s6, s7, s8, s9
+    };
 
-    i = 1;
-    Console.WriteLine(next_s);
-    while(next_s > actual_s) //do while
-    {
-        if (pos_x_s + (x_s * i) + x_s < 0 || pos_y_s + (y_s * i) + y_s < 0 || pos_x_s + (x_s * i) + x_s < N || pos_y_s + (y_s * i) + y_s < N)
-        {
-            return actual_s;
-        }
+    var selectedCorners = squares.Max();
 
-        actual_s = mat[pos_x_s + (x_s * i), pos_y_s + (y_s * i)];
-        Console.WriteLine(actual_s);
-        next_s = mat[pos_x_s + (x_s * i) + x_s, pos_y_s + (y_s * i) + y_s];
-        Console.WriteLine(next_s);
-        i++;
-    }
-    return actual_s;
+    return selectedCorners;
 }
 
 int solucao3(int[,] mat, int N)
