@@ -14,15 +14,18 @@ Random rand = new Random(seed);
 // Console.WriteLine(solucao1(m, 8));
 // Console.WriteLine(solucao2(m, 8));
 
-var count=0;
+var count = 0;
 
 for (int i = 0; i < 1000; i++)
 {
     var m = GerarMatrizCebola(8);
 
-    if(solucao2(m, 8) != solucao1(m, 8))
+    if (solucao2(m, 8) != solucao1(m, 8))
     {
+        Console.WriteLine("\n");
+        Console.WriteLine(solucao1(m, 8));
         Console.WriteLine(solucao2(m, 8));
+        Console.WriteLine("\n");
         MostrarMatrizCebola(m);
         break;
     }
@@ -51,9 +54,9 @@ int solucao1(int[,] mat, int N)
     {
         for (int i = 0; i < N; i++)
         {
-            if (maior < mat[i,j])
+            if (maior < mat[i, j])
             {
-                maior = mat[i,j];
+                maior = mat[i, j];
             }
         }
     }
@@ -62,7 +65,8 @@ int solucao1(int[,] mat, int N)
 
 int solucao2(int[,] mat, int N)
 {
-    MostrarMatrizCebola(mat);
+    // MostrarMatrizCebola(mat);
+
     List<int> corners = new List<int> { mat[0, 0], mat[N - 1, 0], mat[0, N - 1], mat[N - 1, N - 1] };
     var selectedCorner = corners.Max();
 
@@ -99,10 +103,10 @@ int solucao2(int[,] mat, int N)
             break;
     }
 
-    var next = mat[x + dx, y + dy];
     var actual = mat[x, y];
+    var next = mat[x + dx, y + dy];
 
-    while(next > actual)
+    while (next > actual)
     {
         x += dx;
         y += dy;
@@ -113,17 +117,19 @@ int solucao2(int[,] mat, int N)
     int s1 = y != 0 ? mat[x, y - 1] : int.MinValue;
     int s2 = x != N - 1 && y != 0 ? mat[x + 1, y - 1] : int.MinValue;
     int s3 = x != N - 1 ? mat[x + 1, y] : int.MinValue;
-    int s4 = x != N - 1 && y != N ? mat[x + 1, y + 1] : int.MinValue;
-    int s5 = y != N - 1 ? mat[x, y + 1 ] : int.MinValue;
-    int s6 = x != 0 ? mat[x - 1, y] : int.MinValue;
-    int s7 = x != 0 && y != N ? mat[x - 1, y + 1] : int.MinValue;
+    int s4 = x != N - 1 && y != N - 1 ? mat[x + 1, y + 1] : int.MinValue;
+    int s5 = y != N - 1 ? mat[x, y + 1] : int.MinValue;
+    int s6 = x != 0 && y != N - 1 ? mat[x - 1, y + 1] : int.MinValue;
+    int s7 = x != 0 ? mat[x - 1, y] : int.MinValue;
     int s8 = x != 0 && y != 0 ? mat[x - 1, y - 1] : int.MinValue;
     int s9 = mat[x, y];
-    
-    List<int> square = new List<int> 
+
+    List<int> square = new List<int>
     {
         s1, s2, s3, s4, s5, s6, s7, s8, s9
     };
+
+    Console.WriteLine("Square");
 
     // (int, int) squarel = new (int, int)[]
     // {
@@ -144,9 +150,20 @@ int solucao2(int[,] mat, int N)
     // }
 
     selectedCorner = square.Max();
-    var maxIndex = square.IndexOf(selectedCorner);
+
+    Console.WriteLine("\n");
+
+    foreach (var item in square)
+    {
+        Console.WriteLine(item);
+    }
     
-    Console.WriteLine($"({dx} {dy}) {maxIndex}");
+    Console.WriteLine("\n");
+
+    Console.WriteLine(square.Max());
+
+    var maxIndex = square.IndexOf(selectedCorner);
+
     switch (maxIndex)
     {
         case 0:
@@ -205,39 +222,44 @@ int solucao2(int[,] mat, int N)
             return selectedCorner;
     }
 
-    actual = mat[x, y];
-    if (x + dx >= N || x + dx < 0 || y + dy >= N || y + dy < 0)
-        return actual;
-    next = mat[x + dx, y + dy];
+    Console.WriteLine(maxIndex);
 
-    Console.Write($"{next} > {actual}? ({dx}, {dy})");
-    while(next > actual)
+    actual = mat[x, y];
+
+    if (!(x + dx >= N || x + dx < 0 || y + dy >= N || y + dy < 0))
     {
-        Console.WriteLine($" {next} > {actual}!");
-        x += dx;
-        y += dy;
-        actual = next;
-        if (x + dx >= N || x + dx < 0 || y + dy >= N || y + dy < 0)
-            break;
         next = mat[x + dx, y + dy];
-        Console.Write($"{next} > {actual}?");
+        
+        while (next > actual)
+        {
+            // Console.WriteLine($" {next} > {actual}!");
+            x += dx;
+            y += dy;
+            actual = next;
+            if (x + dx >= N || x + dx < 0 || y + dy >= N || y + dy < 0)
+                break;
+            next = mat[x + dx, y + dy];
+            // Console.Write($"{next} > {actual}?");
+        }
+        // Console.WriteLine($"Nop!");
     }
-    Console.WriteLine($"Nop!");
 
     s1 = y != 0 ? mat[x, y - 1] : int.MinValue;
     s2 = x != N - 1 && y != 0 ? mat[x + 1, y - 1] : int.MinValue;
     s3 = x != N - 1 ? mat[x + 1, y] : int.MinValue;
-    s4 = x != N - 1 && y != N ? mat[x + 1, y + 1] : int.MinValue;
-    s5 = y != N - 1 ? mat[x, y + 1 ] : int.MinValue;
-    s6 = x != 0 ? mat[x - 1, y] : int.MinValue;
-    s7 = x != 0 && y != N ? mat[x - 1, y + 1] : int.MinValue;
+    s4 = x != N - 1 && y != N - 1 ? mat[x + 1, y + 1] : int.MinValue;
+    s5 = y != N - 1 ? mat[x, y + 1] : int.MinValue;
+    s6 = x != 0 && y != N - 1 ? mat[x - 1, y + 1] : int.MinValue;
+    s7 = x != 0 ? mat[x - 1, y] : int.MinValue;
     s8 = x != 0 && y != 0 ? mat[x - 1, y - 1] : int.MinValue;
     s9 = mat[x, y];
-    
-    List<int> squares = new List<int> 
+
+    List<int> squares = new List<int>
     {
         s1, s2, s3, s4, s5, s6, s7, s8, s9
     };
+
+    Console.WriteLine("Squares");
 
     var selectedCorners = squares.Max();
 
