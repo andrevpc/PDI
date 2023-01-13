@@ -15,7 +15,32 @@ using System.Runtime.InteropServices;
     Bitmap bmpTranformation = new Bitmap(1000, 1000);
     var oImg = org.img;
 
+    for (int j = 0; j < hei; j++)
+    {
+        for (int i = 0; i < wid; i++)
+        {
+            int index = i + j * wid;
+            if (oImg[index] == 0f)
+                continue;
+            // y = ax + b
+            // b = -xa + y
+            float a = -i;
+            float b = j;
 
+            for (int x = 0; x < 1000; x++)
+            {
+                float y = a * (x / 500f - 1f) + b;
+                y = (y + 5000f) / 10f; 
+                if (y < 0 || y >= 1000)
+                    continue;
+
+                int iy = (int)y;
+                tImg[x + iy * 1000] += 0.0001f;
+                if (tImg[x + iy * 1000] > 1f)
+                    tImg[x + iy * 1000] = 1f;
+            }
+        }
+    }
 
     var tBytes = discretGray(tImg);
     var image = img(bmpTranformation, tBytes);
@@ -160,7 +185,7 @@ Matrix4x4 shear(float cx, float cy)
         mat.M31, mat.M32, mat.M33,
     };
     var _img = t.img;
-    float[] nova = new float[_img.Length];
+    float[] newImg = new float[_img.Length];
     int wid = t.bmp.Width;
     int hei = t.bmp.Height;
     int x = 0;
@@ -174,20 +199,20 @@ Matrix4x4 shear(float cx, float cy)
             x = (int)(p[0] * i + p[1] * j + p[2]);
             y = (int)(p[3] * i + p[4] * j + p[5]);
 
-            if(x < 0 || x >= wid || y < 0 || y >= wid)
+            if(x < 0 || x >= wid || y < 0 || y >= hei)
                 continue;
             else
             {
                 index = (int)(x + y * wid);
-                nova[index] = _img[i+j * wid];
+                newImg[index] = _img[i+j * wid];
             }
         }
     }
 
-    var Imgbytes = discretGray(nova);
+    var Imgbytes = discretGray(newImg);
     img(t.bmp, Imgbytes);
 
-    return (t.bmp, nova);
+    return (t.bmp, newImg);
 }
 
 (Bitmap bmp, float[] img) sobel((Bitmap bmp, float[] img) t,
@@ -738,9 +763,18 @@ void showRects((Bitmap bmp, float[] img) t, List<Rectangle> list)
     showBmp(t.bmp);
 }
 
-var image = open("shuregui.png");
-
-image = resize(image, 2f, 2f);
+var image = open("ar3.jpg");
+otsu(image);
+image = conv(image, 
+    1, 0, -1,
+    2, 0, -2,
+    1, 0, -1);
+image = affine(image, 
+   translateFromSize(0.5f, 0.5f, image) * 
+   rotation(45f) *
+   translateFromSize(-0.5f, -0.5f, image));
 image = bilinear(image);
-
+otsu(image);
+image = hough(image);
+equalization(image);
 show(image);

@@ -103,16 +103,51 @@ int solucao2(int[,] mat, int N)
             break;
     }
 
-    var actual = mat[x, y];
-    var next = mat[x + dx, y + dy];
-
-    while (next > actual)
+    int lowX = x,
+        lowY = y,
+        highX = x + dx,
+        highY = y + dy;
+    
+    while (highX + dx >= 0 &&
+            highX + dx < N &&
+            highY + dy >= 0 &&
+            highY + dy < N)
+        {
+            highX += dx;
+            highY += dy;
+        }
+    
+    int midX, midY;
+    while (mat[lowX + dx, lowY + dy] != mat[highX, highY])
     {
-        x += dx;
-        y += dy;
-        actual = next;
-        next = mat[x + dx, y + dy];
+        if ((dx == 1 && dy == 1) ||
+            (dx != 1 && dy != 1))
+        {
+            midX = (lowX + highX) / 2;
+            midY = (lowY + highY) / 2;
+        }
+        else
+        {
+            midX = (lowX + highX) / 2;
+            midY = (lowY + highY) / 2 + 1;
+        }
+        
+
+        if (mat[midX, midY] > mat[midX + dx, midY + dy])
+        {
+            highX = midX;
+            highY = midY;
+        }
+        else
+        {
+            lowX = midX;
+            lowY = midY;
+        }
     }
+
+    x = lowX;
+    y = lowY;
+    
 
     int s1 = y != 0 ? mat[x, y - 1] : int.MinValue;
     int s2 = x != N - 1 && y != 0 ? mat[x + 1, y - 1] : int.MinValue;
@@ -129,7 +164,7 @@ int solucao2(int[,] mat, int N)
         s1, s2, s3, s4, s5, s6, s7, s8, s9
     };
 
-    Console.WriteLine("Square");
+    // Console.WriteLine("Square");
 
     // (int, int) squarel = new (int, int)[]
     // {
@@ -151,16 +186,16 @@ int solucao2(int[,] mat, int N)
 
     selectedCorner = square.Max();
 
-    Console.WriteLine("\n");
+    // Console.WriteLine("\n");
 
-    foreach (var item in square)
-    {
-        Console.WriteLine(item);
-    }
+    // foreach (var item in square)
+    // {
+    //     Console.WriteLine(item);
+    // }
     
-    Console.WriteLine("\n");
+    // Console.WriteLine("\n");
 
-    Console.WriteLine(square.Max());
+    // Console.WriteLine(square.Max());
 
     var maxIndex = square.IndexOf(selectedCorner);
 
@@ -222,27 +257,61 @@ int solucao2(int[,] mat, int N)
             return selectedCorner;
     }
 
-    Console.WriteLine(maxIndex);
+    // Console.WriteLine(maxIndex);
 
-    actual = mat[x, y];
+    lowX = x;
+    lowY = y;
 
     if (!(x + dx >= N || x + dx < 0 || y + dy >= N || y + dy < 0))
     {
-        next = mat[x + dx, y + dy];
+        highX = x + dx;
+        highY = y + dy;
         
-        while (next > actual)
+        while (highX + dx >= 0 &&
+            highX + dx < N &&
+            highY + dy >= 0 &&
+            highY + dy < N)
+            {
+                highX += dx;
+                highY += dy;
+            }
+
+        while (mat[lowX + dx, lowY + dy] != mat[highX, highY])
         {
-            // Console.WriteLine($" {next} > {actual}!");
-            x += dx;
-            y += dy;
-            actual = next;
-            if (x + dx >= N || x + dx < 0 || y + dy >= N || y + dy < 0)
-                break;
-            next = mat[x + dx, y + dy];
-            // Console.Write($"{next} > {actual}?");
+            if ((dx == 1 && dy == 1) ||
+                (dx != 1 && dy != 1))
+            {
+                midX = (lowX + highX) / 2;
+                midY = (lowY + highY) / 2;
+            }
+            else
+            {
+                midX = (lowX + highX) / 2;
+                midY = (lowY + highY) / 2 + 1;
+            }
+
+            if ((highX + dx >= 0 &&
+                highX + dx < N &&
+                highY + dy >= 0 &&
+                highY + dy < N))
+                    break;
+
+            if (mat[midX, midY] > mat[midX + dx, midY + dy])
+            {
+                highX = midX;
+                highY = midY;
+            }
+            else
+            {
+                lowX = midX;
+                lowY = midY;
+            }
         }
-        // Console.WriteLine($"Nop!");
     }
+    x = lowX;
+    y = lowY;
+    
+
 
     s1 = y != 0 ? mat[x, y - 1] : int.MinValue;
     s2 = x != N - 1 && y != 0 ? mat[x + 1, y - 1] : int.MinValue;
@@ -259,10 +328,15 @@ int solucao2(int[,] mat, int N)
         s1, s2, s3, s4, s5, s6, s7, s8, s9
     };
 
-    Console.WriteLine("Squares");
+    // Console.WriteLine("Squares");
+
+    foreach (var item in squares)
+        Console.Write($"{item}, ");
+    Console.WriteLine();
 
     var selectedCorners = squares.Max();
 
+    
     return selectedCorners;
 }
 
