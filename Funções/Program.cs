@@ -6,114 +6,83 @@ using System.Windows.Forms;
 using System.Drawing.Imaging;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.IO;
 
-(Bitmap bmp, float[] img) hough((Bitmap bmp, float[] img) org)
+
+
+
+(Bitmap bmp, float[] img) interpolate((Bitmap bmp, float[] img) t)
 {
-    int wid = org.bmp.Width;
-    int hei = org.bmp.Height;
-    float[] tImg = new float[1000 * 1000];
-    Bitmap bmpTranformation = new Bitmap(1000, 1000);
-    var oImg = org.img;
+    float[] image = t.img;
+    float[] result = new float[image.Length];
+    int width = t.bmp.Width;
+    int height = t.bmp.Height;
 
-    for (int j = 0; j < hei; j++)
+    for (int j = 0; j < height; j++)
     {
-        for (int i = 0; i < wid; i++)
+        for (int i = 0; i < width; i++)
         {
-            int index = i + j * wid;
-            if (oImg[index] == 0f)
-                continue;
-            // y = ax + b
-            // b = -xa + y
-            float a = -i;
-            float b = j;
-
-            for (int x = 0; x < 1000; x++)
-            {
-                float y = a * (x / 500f - 1f) + b;
-                y = (y + 5000f) / 10f; 
-                if (y < 0 || y >= 1000)
-                    continue;
-
-                int iy = (int)y;
-                tImg[x + iy * 1000] += 0.0001f;
-                if (tImg[x + iy * 1000] > 1f)
-                    tImg[x + iy * 1000] = 1f;
-            }
-        }
-    }
-
-    var tBytes = discretGray(tImg);
-    var image = img(bmpTranformation, tBytes);
-    return (image as Bitmap, tImg);
-} 
-
-(Bitmap bmp, float[] img) bilinear((Bitmap bmp, float[] img) org)
-{
-    float[] orgImg = org.img;
-    float[] newImg = new float[orgImg.Length];
-    int hei = org.bmp.Height;
-    int wid = org.bmp.Width;
-
-    for (int j = 0; j < hei; j++)
-    {
-        for (int i = 0; i < wid; i++)
-        {
-            int index = i + j * wid;
-            if (orgImg[index] > 0f ||
+            int index = i + j * width;
+            if (image[index] > 0f ||
                 i == 0 || j == 0 ||
-                i == wid - 1 || j == hei - 1)
+                i == width - 1 || j == height - 1)
             {
-                newImg[index] = orgImg[index];
+                result[index] = image[index];
                 continue;
             }
 
-            var c1Index = i - 1 + (j - 1) * wid;
-            var c2Index = i + 1 + (j - 1) * wid;
-            float a = (orgImg[c1Index] + orgImg[c2Index]) / 2;
+            var topLeft = i - 1 + (j - 1) * width;
+            var topRight = i + 1 + (j - 1) * width;
+            float topMean = (image[topLeft] + image[topRight]) / 2;
 
-            var c3Index = i - 1 + (j + 1) * wid;
-            var c4Index = i + 1 + (j + 1) * wid;
-            float b = (orgImg[c3Index] + orgImg[c4Index]) / 2;
+            var botLeft = i - 1 + (j + 1) * width;
+            var botRigth = i + 1 + (j + 1) * width;
+            float botMean = (image[botLeft] + image[botRigth]) / 2;
 
-            newImg[index] = (a + b) / 2;
+            result[index] = (topMean + botMean) / 2;
         }
     }
 
-    var imgBytes = discretGray(newImg);
-    img(org.bmp, imgBytes);
+    var imgBytes = discretGray(result);
+    img(t.bmp, imgBytes);
 
-    return (org.bmp, newImg);
+    return (t.bmp, result);
 }
 
-(Bitmap bmp, float[] img) resize((Bitmap bmp, float[] img) org,
-    float scaleX, float scaleY)
+(Bitmap bmp, float[] img) resize((Bitmap bmp, float[] img) t,
+    float resizeX, float resizeY)
 {
-    int wid = org.bmp.Width;
-    int hei = org.bmp.Height;
-    Bitmap newBmp = new Bitmap(
-        (int)(scaleX * wid),
-        (int)(scaleY * hei)
+    int width = t.bmp.Width;
+    int height = t.bmp.Height;
+
+    Bitmap resized = new Bitmap(
+        (int)(resizeX * width),
+        (int)(resizeY * height)
     );
-    int sWid = newBmp.Width;
-    int sHei = newBmp.Height;
-    float[] orgImg = org.img;
-    float[] newImg = new float[sWid * sHei];
-    for (int j = 0; j < hei; j++)
+
+    int newWidth = resized.Width;
+    int newHeight = resized.Height;
+    float[] image = t.img;
+    float[] result = new float[newWidth * newHeight];
+
+    for (int i = 0; i < width; i++)
     {
-        for (int i = 0; i < wid; i++)
+        for (int j = 0; j < height; j++)
         {
-            newImg[i + j * sWid]
-                = orgImg[i + j * wid];
+            result[i + j * newWidth]
+                = image[i + j * width];
         }
     }
-    var imgBytes = discretGray(newImg);
-    var bmp = img(newBmp, imgBytes) as Bitmap;
-    var image = (bmp, newImg);
 
-    image = affine(image,
-        scale(scaleX, scaleY));
+    var imgBytes = discretGray(result);
+    var newImg = img(resized, imgBytes) as Bitmap;
+    var finalResult = (newImg, result);
 
-    return image;
+    finalResult =
+        affine(finalResult,
+            scale(resizeX, resizeY));
+
+    return finalResult;
 }
 
 Matrix4x4 mat(params float[] arr)
@@ -122,7 +91,7 @@ Matrix4x4 mat(params float[] arr)
         arr[0], arr[1], arr[2], 0,
         arr[3], arr[4], arr[5], 0,
         arr[6], arr[7], arr[8], 0,
-             0,      0,      0, 1
+             0, 0, 0, 1
     );
 }
 
@@ -133,8 +102,8 @@ Matrix4x4 rotation(float degree)
     float sin = MathF.Sin(radian);
     return mat(
         cos, -sin, 0,
-        sin,  cos, 0,
-          0,    0, 1
+        sin, cos, 0,
+          0, 0, 1
     );
 }
 
@@ -185,7 +154,7 @@ Matrix4x4 shear(float cx, float cy)
         mat.M31, mat.M32, mat.M33,
     };
     var _img = t.img;
-    float[] newImg = new float[_img.Length];
+    float[] nova = new float[_img.Length];
     int wid = t.bmp.Width;
     int hei = t.bmp.Height;
     int x = 0;
@@ -199,20 +168,20 @@ Matrix4x4 shear(float cx, float cy)
             x = (int)(p[0] * i + p[1] * j + p[2]);
             y = (int)(p[3] * i + p[4] * j + p[5]);
 
-            if(x < 0 || x >= wid || y < 0 || y >= hei)
+            if (x < 0 || x >= wid || y < 0 || y >= wid)
                 continue;
             else
             {
                 index = (int)(x + y * wid);
-                newImg[index] = _img[i+j * wid];
+                nova[index] = _img[i + j * wid];
             }
         }
     }
 
-    var Imgbytes = discretGray(newImg);
+    var Imgbytes = discretGray(nova);
     img(t.bmp, Imgbytes);
 
-    return (t.bmp, newImg);
+    return (t.bmp, nova);
 }
 
 (Bitmap bmp, float[] img) sobel((Bitmap bmp, float[] img) t,
@@ -566,8 +535,8 @@ void showHist((Bitmap bmp, float[] img) t, float db = 0.05f)
     var bmp = Bitmap.FromFile(path) as Bitmap;
     var byteArray = bytes(bmp);
     var dataCont = continuous(byteArray);
-    var gray = grayScale(dataCont);
-    return (bmp, gray);
+    // var gray = grayScale(dataCont);
+    return (bmp, dataCont);
 }
 
 void inverse((Bitmap bmp, float[] img) t)
@@ -606,7 +575,7 @@ Image drawHist(int[] hist)
 
 void show((Bitmap bmp, float[] gray) t)
 {
-    var bytes = discretGray(t.gray);
+    var bytes = discret(t.gray);
     var image = img(t.bmp, bytes);
     showBmp(image);
 }
@@ -753,28 +722,75 @@ void showBmp(Image img)
     Application.Run(form);
 }
 
-void showRects((Bitmap bmp, float[] img) t, List<Rectangle> list)
+RGB[] kmeans((Bitmap bmp, float[] img) t)
 {
-    var g = Graphics.FromImage(t.bmp);
+    int N = t.bmp.Width * t.bmp.Height;
+    byte[] byteList = discret(t.img);
 
-    foreach (var rect in list)
-        g.DrawRectangle(Pens.Red, rect);
+    RandomRGB[] pallet = new RandomRGB[255];
+    for (int i = 0; i < pallet.Length; i++)
+        pallet[i] = new RandomRGB();
 
-    showBmp(t.bmp);
+
+    for (int l = 0; l < 2; l++)
+    {
+
+        for (int i = 0; i < byteList.Length - 3; i += 3)
+        {
+            int nearestIndex = 0;
+            var actualRGB = new RGB(byteList[i], byteList[i + 1], byteList[i + 2]);
+
+            for (int k = 0; k < pallet.Length; k++)
+                if (pallet[k].Distance(actualRGB) < pallet[nearestIndex].Distance(actualRGB))
+                    nearestIndex = k;
+            pallet[nearestIndex].Cluster.Add(actualRGB);
+        }
+
+        for (int i = 0; i < pallet.Length; i++)
+        {
+            var r = 0;
+            var g = 0;
+            var b = 0;
+
+            var clusterSize = pallet[i].Cluster.Count();
+
+            for (int j = 0; j < clusterSize; j++)
+            {
+                r += pallet[i].Cluster[j].R;
+                g += pallet[i].Cluster[j].G;
+                b += pallet[i].Cluster[j].B;
+            }
+
+            pallet[i].R = clusterSize == 0 ? (byte)r : (byte)(r / clusterSize);
+            pallet[i].G = clusterSize == 0 ? (byte)g : (byte)(g / clusterSize);
+            pallet[i].B = clusterSize == 0 ? (byte)b : (byte)(b / clusterSize);
+        }
+    }
+
+    return pallet;
 }
 
-var image = open("ar3.jpg");
-otsu(image);
-image = conv(image, 
-    1, 0, -1,
-    2, 0, -2,
-    1, 0, -1);
-image = affine(image, 
-   translateFromSize(0.5f, 0.5f, image) * 
-   rotation(45f) *
-   translateFromSize(-0.5f, -0.5f, image));
-image = bilinear(image);
-otsu(image);
-image = hough(image);
-equalization(image);
+(Bitmap bmp, float[] img) tododoi((Bitmap bmp, float[] img) t, RGB[] pallet)
+{
+    var image = discret(t.img);
+
+    for(int i = 0; i < image.Length; i+=3)
+    {
+        var actualRGB = new RGB(image[i], image[i + 1], image[i + 2]);
+        var palletIndex = pallet.Select((color, index) => (color, index));
+        int nearestIndex = palletIndex.MinBy(element => actualRGB.Distance(element.color)).index;
+
+        image[i] = pallet[nearestIndex].R;
+        image[i + 1] = pallet[nearestIndex].G;
+        image[i + 2] = pallet[nearestIndex].B;
+    }
+
+
+    img(t.bmp, image);
+    float[] result = continuous(image);
+    return (t.bmp, result);
+}
+
+var image = open("shuregui.png");
+image = tododoi(image ,kmeans(image));
 show(image);
