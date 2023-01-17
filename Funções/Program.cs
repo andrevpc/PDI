@@ -1,88 +1,275 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Drawing;
 using System.Numerics;
+using System.Diagnostics;
 using System.Windows.Forms;
+using System.Threading.Tasks;
 using System.Drawing.Imaging;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.IO;
 
+//Open CV
 
-
-
-(Bitmap bmp, float[] img) interpolate((Bitmap bmp, float[] img) t)
+Bitmap decompress(byte[] file)
 {
-    float[] image = t.img;
-    float[] result = new float[image.Length];
-    int width = t.bmp.Width;
-    int height = t.bmp.Height;
+    if (file[0] != (byte)'P' ||
+        file[1] != (byte)'U' ||
+        file[2] != (byte)'D' ||
+        file[3] != (byte)'I' ||
+        file[4] != (byte)'M')
+        throw new Exception("Arquivo .pudim inválido");
+    
+    int colors = file[5];
+    int hei = file[6 + 3 * 255 + 0] * 256 +
+        file[6 + 3 * 255 + 1];
+    int wid = file[6 + 3 * 255 + 2] * 256 +
+        file[6 + 3 * 255 + 3];
+    Bitmap bmp = new Bitmap(wid, hei);
+    byte[] pixels = new byte[3 * wid * hei];
+    int index = 6 + 3 * 255 + 4;
 
-    for (int j = 0; j < height; j++)
+    for (int i = 0; i < wid * hei; i++)
     {
-        for (int i = 0; i < width; i++)
+        int k = file[index + i];
+        pixels[3 * i + 0] = file[6 + 3 * k + 0];
+        pixels[3 * i + 1] = file[6 + 3 * k + 1];
+        pixels[3 * i + 2] = file[6 + 3 * k + 2];
+    }
+
+    img(bmp, pixels);
+    
+    return bmp;
+}
+
+byte[] compress((Bitmap bmp, byte[] img) org) //kmeans (remove cores do rgb e deixa apenas 256, ao invés de 256*3)
+{
+    int wid = org.bmp.Width;
+    int hei = org.bmp.Height;
+    byte[] img = org.img;
+    byte[] file = new byte[
+        5 + 1 + 3 * 255 + 4 + wid * hei
+    ];
+    Random.Shared.NextBytes(file);
+
+    file[0] = (byte)'P';
+    file[1] = (byte)'U';
+    file[2] = (byte)'D';
+    file[3] = (byte)'I';
+    file[4] = (byte)'M';
+    file[5] = 255;
+
+    long[] R = new long[255];
+    long[] G = new long[255];
+    long[] B = new long[255];
+    long[] Q = new long[255];
+
+    for (int epoch = 0; epoch < 10; epoch++)
+    {
+        for (int k = 0; k < 255; k++)
+            R[k] = G[k] = B[k] = Q[k] = 0;
+
+        Parallel.For(0, hei, j =>
         {
-            int index = i + j * width;
-            if (image[index] > 0f ||
-                i == 0 || j == 0 ||
-                i == width - 1 || j == height - 1)
+            for (int i = 0; i < wid; 
+                i += Random.Shared.Next(2, 11))
             {
-                result[index] = image[index];
+                int index = 3 * (i + j * wid);
+                byte or = img[index + 0];
+                byte og = img[index + 1];
+                byte ob = img[index + 2];
+
+                int bestK = 0;
+                int bestDist = int.MaxValue;
+                for (int k = 0; k < 255; k++)
+                {
+                    index = 6 + 3 * k;
+                    byte r = file[index + 0];
+                    byte g = file[index + 1];
+                    byte b = file[index + 2];
+
+                    int dr = r - or;
+                    int dg = g - og;
+                    int db = b - ob;
+                    int dist = dr * dr + dg * dg + db * db;
+
+                    if (dist < bestDist)
+                    {
+                        bestK = k;
+                        bestDist = dist;
+                    }
+                }
+
+                R[bestK] += or;
+                G[bestK] += og;
+                B[bestK] += ob;
+                Q[bestK]++;
+            }
+        });
+
+        for (int k = 0; k < 255; k++)
+        {
+            if (Q[k] == 0)
+                continue;
+
+            int index = 6 + 3 * k;
+            file[index + 0] = (byte)(R[k] / Q[k]);
+            file[index + 1] = (byte)(G[k] / Q[k]);
+            file[index + 2] = (byte)(B[k] / Q[k]);
+        }
+    }
+
+    file[6 + 3 * 255 + 0] = (byte)(hei / 256);
+    file[6 + 3 * 255 + 1] = (byte)(hei % 256);
+    file[6 + 3 * 255 + 2] = (byte)(wid / 256);
+    file[6 + 3 * 255 + 3] = (byte)(wid % 256);
+    
+    for (int j = 0; j < hei; j++)
+    {
+        for (int i = 0; i < wid; i++)
+        {
+            int index = 3 * (i + j * wid);
+            byte or = img[index + 0];
+            byte og = img[index + 1];
+            byte ob = img[index + 2];
+
+            int bestK = 0;
+            int bestDist = int.MaxValue;
+            for (int k = 0; k < 255; k++)
+            {
+                index = 6 + 3 * k;
+                byte r = file[index + 0];
+                byte g = file[index + 1];
+                byte b = file[index + 2];
+
+                int dr = r - or;
+                int dg = g - og;
+                int db = b - ob;
+                int dist = dr * dr + dg * dg + db * db;
+
+                if (dist < bestDist)
+                {
+                    bestK = k;
+                    bestDist = dist;
+                }
+            }
+
+            file[5 + 1 + 3 * 255 + 4 + i + j * wid]
+                = (byte)bestK;
+        }
+    }
+
+    return file;
+}
+
+(Bitmap bmp, float[] img) hough((Bitmap bmp, float[] img) org) //Transforma retas em pontos em uma transformadas (achar retas e contá-las)
+{
+    int wid = org.bmp.Width;
+    int hei = org.bmp.Height;
+    float[] tImg = new float[1000 * 1000];
+    Bitmap bmpTranformation = new Bitmap(1000, 1000);
+    var oImg = org.img;
+
+    for (int j = 0; j < hei; j++)
+    {
+        for (int i = 0; i < wid; i++)
+        {
+            int index = i + j * wid;
+            if (oImg[index] == 0f)
+                continue;
+            // y = ax + b
+            // b = -xa + y
+            float a = -i;
+            float b = j;
+
+            for (int x = 0; x < 1000; x++)
+            {
+                float y = a * (x / 500f - 1f) + b;
+                y = (y + 5000f) / 10f; 
+                if (y < 0 || y >= 1000)
+                    continue;
+
+                int iy = (int)y;
+                tImg[x + iy * 1000] += 0.0001f;
+                if (tImg[x + iy * 1000] > 1f)
+                    tImg[x + iy * 1000] = 1f;
+            }
+        }
+    }
+
+    var tBytes = discretGray(tImg);
+    var image = img(bmpTranformation, tBytes);
+    return (image as Bitmap, tImg);
+} 
+
+(Bitmap bmp, float[] img) bilinear((Bitmap bmp, float[] img) org) //interpolação, tira os buracos
+{
+    float[] orgImg = org.img;
+    float[] newImg = new float[orgImg.Length];
+    int hei = org.bmp.Height;
+    int wid = org.bmp.Width;
+
+    for (int j = 0; j < hei; j++)
+    {
+        for (int i = 0; i < wid; i++)
+        {
+            int index = i + j * wid;
+            if (orgImg[index] > 0f ||
+                i == 0 || j == 0 ||
+                i == wid - 1 || j == hei - 1)
+            {
+                newImg[index] = orgImg[index];
                 continue;
             }
 
-            var topLeft = i - 1 + (j - 1) * width;
-            var topRight = i + 1 + (j - 1) * width;
-            float topMean = (image[topLeft] + image[topRight]) / 2;
+            var c1Index = i - 1 + (j - 1) * wid;
+            var c2Index = i + 1 + (j - 1) * wid;
+            float a = (orgImg[c1Index] + orgImg[c2Index]) / 2;
 
-            var botLeft = i - 1 + (j + 1) * width;
-            var botRigth = i + 1 + (j + 1) * width;
-            float botMean = (image[botLeft] + image[botRigth]) / 2;
+            var c3Index = i - 1 + (j + 1) * wid;
+            var c4Index = i + 1 + (j + 1) * wid;
+            float b = (orgImg[c3Index] + orgImg[c4Index]) / 2;
 
-            result[index] = (topMean + botMean) / 2;
+            newImg[index] = (a + b) / 2;
         }
     }
 
-    var imgBytes = discretGray(result);
-    img(t.bmp, imgBytes);
+    var imgBytes = discretGray(newImg);
+    img(org.bmp, imgBytes);
 
-    return (t.bmp, result);
+    return (org.bmp, newImg);
 }
 
-(Bitmap bmp, float[] img) resize((Bitmap bmp, float[] img) t,
-    float resizeX, float resizeY)
+(Bitmap bmp, float[] img) resize((Bitmap bmp, float[] img) org,
+    float scaleX, float scaleY)
 {
-    int width = t.bmp.Width;
-    int height = t.bmp.Height;
-
-    Bitmap resized = new Bitmap(
-        (int)(resizeX * width),
-        (int)(resizeY * height)
+    int wid = org.bmp.Width;
+    int hei = org.bmp.Height;
+    Bitmap newBmp = new Bitmap(
+        (int)(scaleX * wid),
+        (int)(scaleY * hei)
     );
-
-    int newWidth = resized.Width;
-    int newHeight = resized.Height;
-    float[] image = t.img;
-    float[] result = new float[newWidth * newHeight];
-
-    for (int i = 0; i < width; i++)
+    int sWid = newBmp.Width;
+    int sHei = newBmp.Height;
+    float[] orgImg = org.img;
+    float[] newImg = new float[sWid * sHei];
+    for (int j = 0; j < hei; j++)
     {
-        for (int j = 0; j < height; j++)
+        for (int i = 0; i < wid; i++)
         {
-            result[i + j * newWidth]
-                = image[i + j * width];
+            newImg[i + j * sWid]
+                = orgImg[i + j * wid];
         }
     }
+    var imgBytes = discretGray(newImg);
+    var bmp = img(newBmp, imgBytes) as Bitmap;
+    var image = (bmp, newImg);
 
-    var imgBytes = discretGray(result);
-    var newImg = img(resized, imgBytes) as Bitmap;
-    var finalResult = (newImg, result);
+    image = affine(image,
+        scale(scaleX, scaleY));
 
-    finalResult =
-        affine(finalResult,
-            scale(resizeX, resizeY));
-
-    return finalResult;
+    return image;
 }
 
 Matrix4x4 mat(params float[] arr)
@@ -91,7 +278,7 @@ Matrix4x4 mat(params float[] arr)
         arr[0], arr[1], arr[2], 0,
         arr[3], arr[4], arr[5], 0,
         arr[6], arr[7], arr[8], 0,
-             0, 0, 0, 1
+             0,      0,      0, 1
     );
 }
 
@@ -102,8 +289,8 @@ Matrix4x4 rotation(float degree)
     float sin = MathF.Sin(radian);
     return mat(
         cos, -sin, 0,
-        sin, cos, 0,
-          0, 0, 1
+        sin,  cos, 0,
+          0,    0, 1
     );
 }
 
@@ -144,7 +331,7 @@ Matrix4x4 shear(float cx, float cy)
     );
 }
 
-(Bitmap bmp, float[] img) affine((Bitmap bmp, float[] img) t,
+(Bitmap bmp, float[] img) affine((Bitmap bmp, float[] img) t, //Usamos matrizes para mudar a imagem, porém abre-se buracos na imagem (interpolação) ""ver wikipedia""
     Matrix4x4 mat)
 {
     float[] p = new float[]
@@ -154,7 +341,7 @@ Matrix4x4 shear(float cx, float cy)
         mat.M31, mat.M32, mat.M33,
     };
     var _img = t.img;
-    float[] nova = new float[_img.Length];
+    float[] newImg = new float[_img.Length];
     int wid = t.bmp.Width;
     int hei = t.bmp.Height;
     int x = 0;
@@ -168,23 +355,23 @@ Matrix4x4 shear(float cx, float cy)
             x = (int)(p[0] * i + p[1] * j + p[2]);
             y = (int)(p[3] * i + p[4] * j + p[5]);
 
-            if (x < 0 || x >= wid || y < 0 || y >= wid)
+            if(x < 0 || x >= wid || y < 0 || y >= hei)
                 continue;
             else
             {
                 index = (int)(x + y * wid);
-                nova[index] = _img[i + j * wid];
+                newImg[index] = _img[i+j * wid];
             }
         }
     }
 
-    var Imgbytes = discretGray(nova);
+    var Imgbytes = discretGray(newImg);
     img(t.bmp, Imgbytes);
 
-    return (t.bmp, nova);
+    return (t.bmp, newImg);
 }
 
-(Bitmap bmp, float[] img) sobel((Bitmap bmp, float[] img) t,
+(Bitmap bmp, float[] img) sobel((Bitmap bmp, float[] img) t, //Acha as bordas
     bool dir = true)
 {
     var im = t.img;
@@ -238,7 +425,7 @@ Matrix4x4 shear(float cx, float cy)
     return (t.bmp, final);
 }
 
-(Bitmap bmp, float[] img) conv(
+(Bitmap bmp, float[] img) conv( //multiplica o kernel com o pixel da imagem (blur, sobel, tirar ruidos)
     (Bitmap bmp, float[] img) t, params float[] kernel)
 {
     var N = (int)Math.Sqrt(kernel.Length);
@@ -278,8 +465,8 @@ Matrix4x4 shear(float cx, float cy)
     return (t.bmp, result);
 }
 
-(Bitmap bmp, float[] img) morfology((Bitmap bmp, float[] img) t, float[] kernel, bool erosion)
-{
+(Bitmap bmp, float[] img) morfology((Bitmap bmp, float[] img) t, float[] kernel, bool erosion) //Matriz que passa por cima da imagem e pinta o pixel se ela atende a forma da matriz
+{ //diminuia e aumentava objetos (desaparecem os objetos pequenos)
     bool match = false;
     int wid = t.bmp.Width;
     int hei = t.bmp.Height;
@@ -349,7 +536,7 @@ List<Rectangle> segmentation((Bitmap bmp, float[] img) t)
         .ToList();
 }
 
-List<Rectangle> segmentationT((Bitmap bmp, float[] img) t, int threshold)
+List<Rectangle> segmentationT((Bitmap bmp, float[] img) t, int threshold) //Separa o objeto do conjunto (pixeis com cores iguais), cada retangulo é o tamanho dos objetos encontrados
 {
     List<Rectangle> list = new List<Rectangle>();
     Stack<int> stack = new Stack<int>();
@@ -418,7 +605,7 @@ List<Rectangle> segmentationT((Bitmap bmp, float[] img) t, int threshold)
     return list;
 }
 
-void otsu((Bitmap bmp, float[] img) t, float db = 0.05f)
+void otsu((Bitmap bmp, float[] img) t, float db = 0.05f) //Encontra o melhor treshhold
 {
     var histogram = hist(t.img, db);
     int threshold = 0;
@@ -468,14 +655,14 @@ void otsu((Bitmap bmp, float[] img) t, float db = 0.05f)
     tresh(t, bestTreshold);
 }
 
-void tresh((Bitmap bmp, float[] img) t,
+void tresh((Bitmap bmp, float[] img) t, //Binarizar (branco = >0.5 e preto = <0.5)
     float threshold = 0.5f)
 {
     for (int i = 0; i < t.img.Length; i++)
         t.img[i] = t.img[i] > threshold ? 1f : 0f;
 }
 
-float[] equalization(
+float[] equalization( //Imagem fica mais nitida, "esticamos" o histograma (antiga 2 e arrumei) (min vira 0 e max o 1)
     (Bitmap bmp, float[] img) t,
     float threshold = 0f,
     float db = 0.05f)
@@ -535,11 +722,11 @@ void showHist((Bitmap bmp, float[] img) t, float db = 0.05f)
     var bmp = Bitmap.FromFile(path) as Bitmap;
     var byteArray = bytes(bmp);
     var dataCont = continuous(byteArray);
-    // var gray = grayScale(dataCont);
-    return (bmp, dataCont);
+    var gray = grayScale(dataCont);
+    return (bmp, gray);
 }
 
-void inverse((Bitmap bmp, float[] img) t)
+void inverse((Bitmap bmp, float[] img) t) //Preto vira branco
 {
     for (int i = 0; i < t.img.Length; i++)
         t.img[i] = 1f - t.img[i];
@@ -575,12 +762,12 @@ Image drawHist(int[] hist)
 
 void show((Bitmap bmp, float[] gray) t)
 {
-    var bytes = discret(t.gray);
+    var bytes = discretGray(t.gray);
     var image = img(t.bmp, bytes);
     showBmp(image);
 }
 
-int[] hist(float[] img, float db = 0.05f)
+int[] hist(float[] img, float db = 0.05f) //Gráfico de barras que indica os pixeis que tem de acordo com a intensidade
 {
     int histogramLen = (int)(1 / db) + 1;
     int[] histogram = new int[histogramLen];
@@ -591,7 +778,7 @@ int[] hist(float[] img, float db = 0.05f)
     return histogram;
 }
 
-float[] grayScale(float[] img)
+float[] grayScale(float[] img) //Preto e branco com média ponderada de acordo com a visão humana
 {
     float[] result = new float[img.Length / 3];
 
@@ -722,75 +909,33 @@ void showBmp(Image img)
     Application.Run(form);
 }
 
-RGB[] kmeans((Bitmap bmp, float[] img) t)
+void showRects((Bitmap bmp, float[] img) t, List<Rectangle> list)
 {
-    int N = t.bmp.Width * t.bmp.Height;
-    byte[] byteList = discret(t.img);
+    var g = Graphics.FromImage(t.bmp);
 
-    RandomRGB[] pallet = new RandomRGB[255];
-    for (int i = 0; i < pallet.Length; i++)
-        pallet[i] = new RandomRGB();
+    foreach (var rect in list)
+        g.DrawRectangle(Pens.Red, rect);
 
-
-    for (int l = 0; l < 2; l++)
-    {
-
-        for (int i = 0; i < byteList.Length - 3; i += 3)
-        {
-            int nearestIndex = 0;
-            var actualRGB = new RGB(byteList[i], byteList[i + 1], byteList[i + 2]);
-
-            for (int k = 0; k < pallet.Length; k++)
-                if (pallet[k].Distance(actualRGB) < pallet[nearestIndex].Distance(actualRGB))
-                    nearestIndex = k;
-            pallet[nearestIndex].Cluster.Add(actualRGB);
-        }
-
-        for (int i = 0; i < pallet.Length; i++)
-        {
-            var r = 0;
-            var g = 0;
-            var b = 0;
-
-            var clusterSize = pallet[i].Cluster.Count();
-
-            for (int j = 0; j < clusterSize; j++)
-            {
-                r += pallet[i].Cluster[j].R;
-                g += pallet[i].Cluster[j].G;
-                b += pallet[i].Cluster[j].B;
-            }
-
-            pallet[i].R = clusterSize == 0 ? (byte)r : (byte)(r / clusterSize);
-            pallet[i].G = clusterSize == 0 ? (byte)g : (byte)(g / clusterSize);
-            pallet[i].B = clusterSize == 0 ? (byte)b : (byte)(b / clusterSize);
-        }
-    }
-
-    return pallet;
+    showBmp(t.bmp);
 }
 
-(Bitmap bmp, float[] img) tododoi((Bitmap bmp, float[] img) t, RGB[] pallet)
-{
-    var image = discret(t.img);
+// var bmp = Bitmap.FromFile("ar1.jpg") as Bitmap;
+// var byteArray = bytes(bmp);
+// var image = (bmp, byteArray);
+// var file = compress(image);
+// File.WriteAllBytes("ar.pudim", file);
 
-    for(int i = 0; i < image.Length; i+=3)
-    {
-        var actualRGB = new RGB(image[i], image[i + 1], image[i + 2]);
-        var palletIndex = pallet.Select((color, index) => (color, index));
-        int nearestIndex = palletIndex.MinBy(element => actualRGB.Distance(element.color)).index;
+// var data = File.ReadAllBytes(args[0]);
+// var newBmp = decompress(data);
+// string path = Path.GetTempPath() + "temp.bmp";
+// newBmp.Save(path);
+// new Process()
+// {
+//     StartInfo = new ProcessStartInfo(path)
+//     {
+//         UseShellExecute = true
+//     }
+// }.Start();
 
-        image[i] = pallet[nearestIndex].R;
-        image[i + 1] = pallet[nearestIndex].G;
-        image[i + 2] = pallet[nearestIndex].B;
-    }
-
-
-    img(t.bmp, image);
-    float[] result = continuous(image);
-    return (t.bmp, result);
-}
-
-var image = open("shuregui.png");
-image = tododoi(image ,kmeans(image));
-show(image);
+Image Dummy = Image.FromFile("shuregui.png");
+Dummy.Save("image.bmp", ImageFormat.Bmp);
